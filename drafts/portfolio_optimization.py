@@ -274,3 +274,36 @@ class PortfolioOptimization:
         ax.legend()
         plt.tight_layout()
         plt.show();
+        
+        
+    def save_plot_efficient_frontier(self, path = "./pics/frontier.pdf"):
+        r_i = self.exp_returns.copy()
+        cov_ij = self.assets_cov.copy()
+        ef = EfficientFrontier(
+            r_i, cov_ij, weight_bounds=(0,1)
+        )
+        
+        fig, ax = plt.subplots()
+        ef_max_sharpe = ef.deepcopy()
+        plotting.plot_efficient_frontier(ef, ax=ax, show_assets=True, show_tickers=True)
+
+        # Find the tangency portfolio
+        ef_max_sharpe.max_sharpe(risk_free_rate=self.rfr)
+        ret_tangent, std_tangent, _ = ef_max_sharpe.portfolio_performance()
+        ax.scatter(std_tangent, ret_tangent, marker="*", s=100, c="r", label="Max Sharpe")
+
+        # Generate random portfolios
+        n_samples = 10_000
+        w = np.random.dirichlet(np.ones(ef.n_assets), n_samples)
+        rets = w.dot(ef.expected_returns)
+        stds = np.sqrt(
+            np.diag(w @ ef.cov_matrix @ w.T)
+        )
+        sharpes = rets / stds
+        ax.scatter(stds, rets, marker=".", c=sharpes, cmap="viridis_r")
+
+        # Output
+        ax.set_title("Efficient Frontier with Random Portfolios")
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(path, format="pdf");
