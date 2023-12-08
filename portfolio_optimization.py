@@ -209,55 +209,106 @@ class PortfolioOptimization:
         )
         opt_stock_weights = ef.max_sharpe(risk_free_rate=self.rfr)
         self.opt_stock_weights = dict(ef.clean_weights())
+        return self.opt_stock_weights
+
+
+    def calc_opt_stock_weights_utility(self, gamma=3):
+        self.gamma = gamma
+
+        exp_ret = self.exp_returns_with_bond.copy()
+        full_cov = self.assets_cov_with_bond.copy()
+        ef = EfficientFrontier(
+            exp_ret, full_cov, weight_bounds=(0,1)
+        )
+        opt_weights_utility = ef.max_quadratic_utility(risk_aversion=gamma)
+        self.opt_weights_utility = dict(ef.clean_weights())
+        return self.opt_weights_utility
     
 
-    def make_pie_graph_weights(self):
-        dict_cleaned_stock_weights = {
-            key: self.opt_stock_weights[key] 
-            for key in self.opt_stock_weights 
-            if self.opt_stock_weights[key] != 0
+    def make_pie_graph_weights(self, util=False):
+        if util:
+            w = self.opt_weights_utility
+        else:
+            w = self.opt_stock_weights
+        
+        dict_cleaned_weights = {
+            key: w[key] for key in w if w[key] != 0
         }
 
-        self.cleaned_opt_stock_weights = dict_cleaned_stock_weights
+        if util:
+            self.cleaned_opt_weights_utility = dict_cleaned_weights
+        else:
+            self.cleaned_opt_stock_weights = dict_cleaned_weights
 
         colors = sns.color_palette('pastel')
         plt.pie(
-            self.cleaned_opt_stock_weights.values(), 
-            labels=self.cleaned_opt_stock_weights.keys(), 
+            dict_cleaned_weights.values(), 
+            labels=dict_cleaned_weights.keys(), 
             colors=colors, autopct=''
         )
         plt.show();
     
 
-    def calc_stock_portfolio_performance(self):
-        r_i = self.exp_returns.copy()
-        cov_ij = self.assets_cov.copy()
+    def calc_stock_portfolio_performance(self, util=False):
+        if util:
+            r_i = self.exp_returns_with_bond.copy()
+            cov_ij = self.assets_cov_with_bond.copy()
+        else:
+            r_i = self.exp_returns.copy()
+            cov_ij = self.assets_cov.copy()
         ef = EfficientFrontier(
             r_i, cov_ij, weight_bounds=(0,1)
         )
 
-        weights = ef.max_sharpe(risk_free_rate=self.rfr)
+        if util:
+            weights = ef.max_quadratic_utility(risk_aversion=self.gamma)
+        else:
+            weights = ef.max_sharpe(risk_free_rate=self.rfr)
         cleaned_weights = ef.clean_weights()
         
-        ef.portfolio_performance(verbose=True, risk_free_rate=self.rfr)
+        if util:
+            self.portfolio_performance_utility = ef.portfolio_performance(verbose=True, risk_free_rate=self.rfr)
+            # return self.portfolio_performance_utility
+        else:
+            self.portfolio_performance = ef.portfolio_performance(verbose=True, risk_free_rate=self.rfr)
+            # return self.portfolio_performance
         # volatility = std(portfolio)
 
     
-    def plot_efficient_frontier(self):
-        r_i = self.exp_returns.copy()
-        cov_ij = self.assets_cov.copy()
+    def plot_efficient_frontier(self, util=False, path="./pics/frontier.png"):
+        if util:
+            r_i = self.exp_returns_with_bond.copy()
+            cov_ij = self.assets_cov_with_bond.copy()
+        else:
+            r_i = self.exp_returns.copy()
+            cov_ij = self.assets_cov.copy()
         ef = EfficientFrontier(
             r_i, cov_ij, weight_bounds=(0,1)
         )
         
         fig, ax = plt.subplots()
-        ef_max_sharpe = ef.deepcopy()
-        plotting.plot_efficient_frontier(ef, ax=ax, show_assets=True, show_tickers=True)
+        ef_opt = ef.deepcopy()
+        plotting.plot_efficient_frontier(
+            ef, ax=ax, show_assets=True, show_tickers=True
+        )
 
         # Find the tangency portfolio
-        ef_max_sharpe.max_sharpe(risk_free_rate=self.rfr)
-        ret_tangent, std_tangent, _ = ef_max_sharpe.portfolio_performance()
-        ax.scatter(std_tangent, ret_tangent, marker="*", s=100, c="r", label="Max Sharpe")
+        if util:
+            ef_opt.max_quadratic_utility(risk_aversion=self.gamma)
+        else:
+            ef_opt.max_sharpe(risk_free_rate=self.rfr)
+        ret_tangent, std_tangent, _ = ef_opt.portfolio_performance()
+        
+        if util:
+            ax.scatter(
+                std_tangent, ret_tangent, marker="*", 
+                s=100, c="r", label="Max Utility"
+            )
+        else:
+            ax.scatter(
+                std_tangent, ret_tangent, marker="*", 
+                s=100, c="r", label="Max Sharpe"
+            )
 
         # Generate random portfolios
         n_samples = 10_000
@@ -267,15 +318,23 @@ class PortfolioOptimization:
             np.diag(w @ ef.cov_matrix @ w.T)
         )
         sharpes = rets / stds
-        ax.scatter(stds, rets, marker=".", c=sharpes, cmap="viridis_r")
+        ax.scatter(
+            stds, rets, marker=".", 
+            c=sharpes, cmap="viridis_r"
+        )
 
         # Output
-        ax.set_title("Efficient Frontier with random portfolios")
+        if util:
+            ax.set_title("Efficient Frontier with random portfolios (Utility)")
+        else:
+            ax.set_title("Efficient Frontier with random portfolios")
         ax.legend()
         plt.tight_layout()
+        plt.savefig(path, format="png");
         plt.show();
         
-        
+
+    '''
     def save_plot_efficient_frontier(self, path = "./pics/frontier.pdf"):
         r_i = self.exp_returns.copy()
         cov_ij = self.assets_cov.copy()
@@ -307,3 +366,4 @@ class PortfolioOptimization:
         ax.legend()
         plt.tight_layout()
         plt.savefig(path, format="pdf");
+    ''' 
