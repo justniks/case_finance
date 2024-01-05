@@ -275,7 +275,7 @@ class PortfolioOptimization:
         # volatility = std(portfolio)
 
     
-    def plot_efficient_frontier(self, util=False, path="./pics/frontier.png"):
+    def plot_efficient_frontier(self, util=False, path="./frontier.png"):
         if util:
             r_i = self.exp_returns_with_bond.copy()
             cov_ij = self.assets_cov_with_bond.copy()
@@ -367,3 +367,4 @@ class PortfolioOptimization:
         plt.tight_layout()
         plt.savefig(path, format="pdf");
     ''' 
+
